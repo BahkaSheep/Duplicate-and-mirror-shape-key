@@ -1,10 +1,10 @@
 bl_info = {
     "name": "Mirror Shape Key",
-    "author": "Created by Bahka and Claude",
-    "version": (1, 0),
+    "author": "Created by Bahka and R1",
+    "version": (1, 1),
     "blender": (4, 3, 0),
     "location": "Properties > Object Data Properties > Shape Keys > Specials Menu",
-    "description": "Adds mirror options to shape key specials menu",
+    "description": "Adds mirror and normalization options to shape key specials menu",
     "category": "Mesh",
 }
 
@@ -85,18 +85,80 @@ class MESH_OT_mirror_shape_key(Operator):
         self.report({'INFO'}, f"Created mirrored shape key: {new_key.name}")
         return {'FINISHED'}
 
+class MESH_OT_normalize_shape_key_range(Operator):
+    """Normalize shape key range while preserving deformation range"""
+    bl_idname = "mesh.normalize_shape_key_range"
+    bl_label = "Normalize Shape Key Range"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return (obj and obj.type == 'MESH' and
+                obj.data.shape_keys and
+                obj.active_shape_key_index > 0)
+
+    def execute(self, context):
+        obj = context.active_object
+        shape_key = obj.active_shape_key
+
+        if not shape_key:
+            self.report({'ERROR'}, "No active shape key")
+            return {'CANCELLED'}
+
+        # Calculate the current range
+        current_min = shape_key.slider_min
+        current_max = shape_key.slider_max
+        current_range = current_max - current_min
+
+        if current_range == 0:
+            self.report({'ERROR'}, "Shape key has zero range")
+            return {'CANCELLED'}
+
+        # Store the current value and set to 1.0 to get full deformation
+        current_value = shape_key.value
+        shape_key.value = 1.0
+
+        # Get the base mesh vertices
+        basis = obj.data.shape_keys.key_blocks[0]
+        basis_verts = [v.co for v in basis.data]
+
+        # Calculate and apply scaled deformations
+        for i in range(len(shape_key.data)):
+            # Calculate the deformation vector
+            deformation = shape_key.data[i].co - basis_verts[i]
+            # Scale the deformation to account for range normalization
+            scaled_deformation = deformation * current_range
+            # Apply the scaled deformation
+            shape_key.data[i].co = basis_verts[i] + scaled_deformation
+
+        # Reset the slider range to 0-1
+        shape_key.slider_min = 0.0
+        shape_key.slider_max = 1.0
+
+        # Restore the proportional value
+        shape_key.value = (current_value - current_min) / current_range
+
+        self.report({'INFO'}, f"Normalized shape key range to 0-1")
+        return {'FINISHED'}
+
 def menu_func(self, context):
-    op = self.layout.operator(MESH_OT_mirror_shape_key.bl_idname, text="Duplicate and Mirror Shape Key")
+    layout = self.layout
+    layout.separator()
+    layout.operator(MESH_OT_normalize_shape_key_range.bl_idname)
+    op = layout.operator(MESH_OT_mirror_shape_key.bl_idname, text="Duplicate and Mirror Shape Key")
     op.use_topology = False
-    op = self.layout.operator(MESH_OT_mirror_shape_key.bl_idname, text="Duplicate and Mirror Shape Key (Topology)")
+    op = layout.operator(MESH_OT_mirror_shape_key.bl_idname, text="Duplicate and Mirror Shape Key (Topology)")
     op.use_topology = True
 
 def register():
     bpy.utils.register_class(MESH_OT_mirror_shape_key)
+    bpy.utils.register_class(MESH_OT_normalize_shape_key_range)
     bpy.types.MESH_MT_shape_key_context_menu.append(menu_func)
 
 def unregister():
     bpy.utils.unregister_class(MESH_OT_mirror_shape_key)
+    bpy.utils.unregister_class(MESH_OT_normalize_shape_key_range)
     bpy.types.MESH_MT_shape_key_context_menu.remove(menu_func)
 
 if __name__ == "__main__":
