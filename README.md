@@ -10,6 +10,10 @@ Select the shape key you wish to duplicate and mirror, click on "Duplicate and M
 
 ![image](https://github.com/user-attachments/assets/97e3f856-6812-4684-8ce2-d32f426663c7)
 
+An option to display a warning when editing a non-basis shape key is selected. It can be disabled in the addons preferences tab
+
+<img width="1120" height="314" alt="image" src="https://github.com/user-attachments/assets/282ddaa5-e2a6-412f-9e4f-875328a32644" />
+
 ## Installation
 Go to releases, download the .zip and drag and drop it into blender.
 Alternatively, select "Edit -> Preferences" and choose "Add-ons" tab. Click "Install from disk..." (little arrow dropdown at top right) and choose the downloaded file. And thats it.
