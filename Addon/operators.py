@@ -1,19 +1,16 @@
-bl_info = {
-    "name": "Mirror Shape Key",
-    "author": "Created by Bahka and R1",
-    "version": (1, 1),
-    "blender": (4, 3, 0),
-    "location": "Properties > Object Data Properties > Shape Keys > Specials Menu",
-    "description": "Adds mirror and normalization options to shape key specials menu",
-    "category": "Mesh",
-}
-
 import bpy
 from bpy.types import Operator
 import re
 
+
 def swap_side_name(name):
-    # Define patterns and their replacements
+    """Return the mirror-side counterpart of a shape key name.
+
+    Handles common naming conventions:
+        "ArmLeft"/"ArmRight", "Arm.L"/"Arm.R", "Arm_L"/"Arm_R",
+        "armleft"/"armright".
+    If no convention matches, "_mirrored" is appended.
+    """
     patterns = [
         (r'(.*)Left$', r'\1Right'),
         (r'(.*)Right$', r'\1Left'),
@@ -25,32 +22,48 @@ def swap_side_name(name):
         (r'(.*)right$', r'\1left'),
     ]
 
-    # Try each pattern
     for pattern, replacement in patterns:
         if re.match(pattern, name):
             return re.sub(pattern, replacement, name)
-
-    # If no pattern matches, add _mirrored
     return f"{name}_mirrored"
 
+
 class MESH_OT_mirror_shape_key(Operator):
-    """Duplicate and mirror the selected shape key"""
+    """Duplicate the active shape key, mirror it across the X axis, and
+    name the result using the opposite side convention.
+
+    The new key is inserted directly after the source key. Only available
+    in Object Mode with a non-basis shape key selected.
+    """
+
     bl_idname = "mesh.mirror_shape_key"
     bl_label = "Duplicate and Mirror Shape Key"
+    bl_description = (
+        "Duplicate the active shape key, mirror it across the X axis, "
+        "and name it using the opposite side convention. "
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     use_topology: bpy.props.BoolProperty(
         name="Topology Mirror",
-        description="Use topology based mirroring",
-        default=False
+        description=(
+            "Mirror using topology-based vertex matching instead of "
+            "spatial proximity. More reliable on meshes whose mirrored "
+            "halves are close to the center line"
+        ),
+        default=False,
     )
 
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        return (obj and obj.type == 'MESH' and
-                obj.data.shape_keys and
-                obj.active_shape_key_index > 0)
+        return (
+            obj is not None
+            and obj.type == 'MESH'
+            and obj.mode != 'EDIT'          # shape key data is unsafe to edit in Edit Mode
+            and obj.data.shape_keys is not None
+            and obj.active_shape_key_index > 0
+        )
 
     def execute(self, context):
         obj = context.active_object
@@ -61,42 +74,53 @@ class MESH_OT_mirror_shape_key(Operator):
             self.report({'ERROR'}, "No active shape key")
             return {'CANCELLED'}
 
-        # Generate new name by swapping left/right or adding _mirrored
         new_name = swap_side_name(active_key.name)
-
         new_key = obj.shape_key_add(name=new_name, from_mix=False)
 
         for i in range(len(new_key.data)):
             new_key.data[i].co = active_key.data[i].co.copy()
 
-        # The new key is at the end of the list
         new_index = len(obj.data.shape_keys.key_blocks) - 1
         obj.active_shape_key_index = new_index
 
-        # Mirror the shape key
         if self.use_topology:
             bpy.ops.object.shape_key_mirror(use_topology=True)
         else:
             bpy.ops.object.shape_key_mirror()
 
-        # Move the new shape key to just after the original
         while obj.active_shape_key_index > original_index + 1:
             bpy.ops.object.shape_key_move(type='UP')
         self.report({'INFO'}, f"Created mirrored shape key: {new_key.name}")
         return {'FINISHED'}
 
+
 class MESH_OT_normalize_shape_key_range(Operator):
-    """Normalize shape key range while preserving deformation range"""
+    """Rescale the active shape key so its slider range becomes 0–1.
+
+    Any custom slider_min / slider_max values are folded into the vertex
+    offsets, then the slider is reset to the standard 0–1 range. The
+    current slider value is remapped so the visible deformation does not
+    change. Only available in Object Mode with a non-basis shape key
+    selected.
+    """
+
     bl_idname = "mesh.normalize_shape_key_range"
     bl_label = "Normalize Shape Key Range"
+    bl_description = (
+        "Reset the active shape key's slider range to 0–1, keeping the visible deformation unchanged. "
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        return (obj and obj.type == 'MESH' and
-                obj.data.shape_keys and
-                obj.active_shape_key_index > 0)
+        return (
+            obj is not None
+            and obj.type == 'MESH'
+            and obj.mode != 'EDIT'          # shape key data is unsafe to edit in Edit Mode
+            and obj.data.shape_keys is not None
+            and obj.active_shape_key_index > 0
+        )
 
     def execute(self, context):
         obj = context.active_object
@@ -106,7 +130,6 @@ class MESH_OT_normalize_shape_key_range(Operator):
             self.report({'ERROR'}, "No active shape key")
             return {'CANCELLED'}
 
-        # Calculate the current range
         current_min = shape_key.slider_min
         current_max = shape_key.slider_max
         current_range = current_max - current_min
@@ -115,51 +138,47 @@ class MESH_OT_normalize_shape_key_range(Operator):
             self.report({'ERROR'}, "Shape key has zero range")
             return {'CANCELLED'}
 
-        # Store the current value and set to 1.0 to get full deformation
         current_value = shape_key.value
         shape_key.value = 1.0
 
-        # Get the base mesh vertices
         basis = obj.data.shape_keys.key_blocks[0]
         basis_verts = [v.co for v in basis.data]
 
-        # Calculate and apply scaled deformations
         for i in range(len(shape_key.data)):
-            # Calculate the deformation vector
             deformation = shape_key.data[i].co - basis_verts[i]
-            # Scale the deformation to account for range normalization
             scaled_deformation = deformation * current_range
-            # Apply the scaled deformation
             shape_key.data[i].co = basis_verts[i] + scaled_deformation
 
-        # Reset the slider range to 0-1
         shape_key.slider_min = 0.0
         shape_key.slider_max = 1.0
-
-        # Restore the proportional value
         shape_key.value = (current_value - current_min) / current_range
 
-        self.report({'INFO'}, f"Normalized shape key range to 0-1")
+        self.report({'INFO'}, "Normalized shape key range to 0–1")
         return {'FINISHED'}
+
 
 def menu_func(self, context):
     layout = self.layout
-    layout.separator()
-    layout.operator(MESH_OT_normalize_shape_key_range.bl_idname)
-    op = layout.operator(MESH_OT_mirror_shape_key.bl_idname, text="Duplicate and Mirror Shape Key")
+    op = layout.operator(
+        MESH_OT_mirror_shape_key.bl_idname,
+        text="Duplicate and Mirror Shape Key",
+    )
     op.use_topology = False
-    op = layout.operator(MESH_OT_mirror_shape_key.bl_idname, text="Duplicate and Mirror Shape Key (Topology)")
+    op = layout.operator(
+        MESH_OT_mirror_shape_key.bl_idname,
+        text="Duplicate and Mirror Shape Key (Topology)",
+    )
     op.use_topology = True
+    layout.operator(MESH_OT_normalize_shape_key_range.bl_idname)
+
 
 def register():
     bpy.utils.register_class(MESH_OT_mirror_shape_key)
     bpy.utils.register_class(MESH_OT_normalize_shape_key_range)
     bpy.types.MESH_MT_shape_key_context_menu.append(menu_func)
 
-def unregister():
-    bpy.utils.unregister_class(MESH_OT_mirror_shape_key)
-    bpy.utils.unregister_class(MESH_OT_normalize_shape_key_range)
-    bpy.types.MESH_MT_shape_key_context_menu.remove(menu_func)
 
-if __name__ == "__main__":
-    register()
+def unregister():
+    bpy.types.MESH_MT_shape_key_context_menu.remove(menu_func)
+    bpy.utils.unregister_class(MESH_OT_normalize_shape_key_range)
+    bpy.utils.unregister_class(MESH_OT_mirror_shape_key)

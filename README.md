@@ -11,4 +11,5 @@ Select the shape key you wish to duplicate and mirror, click on "Duplicate and M
 ![image](https://github.com/user-attachments/assets/97e3f856-6812-4684-8ce2-d32f426663c7)
 
 ## Installation
-Select "Edit -> Preferences" and choose "Add-ons" tab. Click "Install from disk..." (little arrow dropdown at top right) and choose the downloaded file. And thats it,
+Go to releases, download the .zip and drag and drop it into blender.
+Alternatively, select "Edit -> Preferences" and choose "Add-ons" tab. Click "Install from disk..." (little arrow dropdown at top right) and choose the downloaded file. And thats it.

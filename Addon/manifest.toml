@@ -1,0 +1,9 @@
+schema_version = "1.0.0"
+name = "Mirror Shape Key"
+id = "mirror_shape_key_extension"
+version = "1.0.0"
+blender_version_min = "4.2.0"
+maintainer = "Bahka"
+tagline = "Adds mirroring and normalization options for shape keys"
+
+type = "add-on"
