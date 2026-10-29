@@ -137,20 +137,20 @@ class ShapeKeyWarningPreferences(bpy.types.AddonPreferences):
     pos_x: bpy.props.FloatProperty(
         name="X (0-1)",
         description="Horizontal position as a fraction of the viewport width",
-        default=0.075, min=0.0, max=1.0,
+        default=0.5, min=0.0, max=1.0,
         precision=3, subtype='FACTOR',
     )
     pos_y: bpy.props.FloatProperty(
         name="Y (0-1)",
         description="Vertical position as a fraction of the viewport height (0 = bottom)",
-        default=0.035, min=0.0, max=1.0,
+        default=0.95, min=0.0, max=1.0,
         precision=3, subtype='FACTOR',
     )
     anchor: bpy.props.EnumProperty(
         name="Anchor",
         description="Which corner of the text box is placed at the target position",
         items=_ANCHOR_ITEMS,
-        default='BOTTOM_LEFT',
+        default='TOP_CENTER',
     )
     font_size: bpy.props.IntProperty(
         name="Font Size",
