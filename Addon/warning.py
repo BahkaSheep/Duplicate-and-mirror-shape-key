@@ -1,4 +1,4 @@
-"""Pulsing viewport warning shown while editing a non-basis shape key."""
+"""Pulsing viewport warning shown while editing/sculpting a non-basis shape key."""
 
 import bpy
 import blf
@@ -7,6 +7,10 @@ import math
 
 _draw_handle = None
 _timer_running = False
+
+# Modes in which the active shape key can be modified and is therefore
+# worth warning about.
+_WARN_MODES = {'EDIT', 'SCULPT'}
 
 _ANCHOR_ITEMS = [
     ('TOP_LEFT',     "Top Left",     ""),
@@ -33,7 +37,9 @@ def warning_active(context, prefs):
     if prefs is None or not prefs.enabled:
         return False
     obj = context.active_object
-    if not obj or obj.type != 'MESH' or obj.mode != 'EDIT':
+    if not obj or obj.type != 'MESH':
+        return False
+    if obj.mode not in _WARN_MODES:
         return False
     if not obj.data.shape_keys:
         return False
@@ -122,7 +128,10 @@ class ShapeKeyWarningPreferences(bpy.types.AddonPreferences):
 
     enabled: bpy.props.BoolProperty(
         name="Enable Edit Warning",
-        description="Show a pulsing warning while editing a non-basis shape key",
+        description=(
+            "Show a pulsing warning while editing or sculpting a "
+            "non-basis shape key"
+        ),
         default=True,
     )
     pos_x: bpy.props.FloatProperty(
